@@ -1,9 +1,3 @@
-"""Phase 2: Literature review with optional web search."""
-
-from __future__ import annotations
-
-from .llm import LLM
-
 SYSTEM = """\
 You are a research scientist conducting a literature review.
 
@@ -20,50 +14,21 @@ describe the approach without inventing a citation."""
 SCHEMA = {
     "type": "object",
     "properties": {
-        "prior_work": {"type": "string", "description": "Summary of prior work"},
-        "baseline_approach": {
-            "type": "string",
-            "description": "Standard baseline method",
-        },
-        "baseline_spec": {
-            "type": "object",
-            "description": "Specification for implementing the baseline",
-        },
-        "datasets": {
-            "type": "array",
-            "items": {"type": "object"},
-            "description": "Relevant datasets",
-        },
-        "metrics": {
-            "type": "array",
-            "items": {"type": "object"},
-            "description": "Key metrics",
-        },
-        "pitfalls": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "Known pitfalls",
-        },
+        "prior_work": {"type": "string"},
+        "baseline_approach": {"type": "string"},
+        "baseline_spec": {"type": "object"},
+        "datasets": {"type": "array", "items": {"type": "object"}},
+        "metrics": {"type": "array", "items": {"type": "object"}},
+        "pitfalls": {"type": "array", "items": {"type": "string"}},
     },
-    "required": [
-        "prior_work",
-        "baseline_approach",
-        "baseline_spec",
-        "datasets",
-        "metrics",
-        "pitfalls",
-    ],
+    "required": ["prior_work", "baseline_approach", "baseline_spec",
+                  "datasets", "metrics", "pitfalls"],
 }
 
 WEB_SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search"}
 
 
-def research(
-    llm: LLM,
-    hypothesis: str,
-    context: str = "",
-    web_search: bool = True,
-) -> dict:
+def research(llm, hypothesis, context="", web_search=True):
     user = f"Hypothesis to investigate:\n{hypothesis}"
     if context:
         user += f"\n\nContext from prior investigations:\n{context}"
@@ -72,8 +37,7 @@ def research(
     if web_search:
         try:
             search_context = llm.with_tools(
-                SYSTEM, user, [WEB_SEARCH_TOOL], temperature=0.5
-            )
+                SYSTEM, user, [WEB_SEARCH_TOOL], temperature=0.5)
         except Exception:
             pass
 

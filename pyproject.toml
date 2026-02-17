@@ -1,6 +1,6 @@
 [project]
 name = "idea"
-version = "0.2.0"
+version = "0.3.0"
 description = "IDEA: Autonomous research loop — Idea, Deep research, Experiment, Analyze"
 readme = "README.md"
 authors = [
@@ -8,7 +8,6 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "click",
     "anthropic>=0.79",
 ]
 

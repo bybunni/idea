@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-IDEA (Idea → Deep research → Experiment → Analyze) is an autonomous research loop that investigates scientific hypotheses without human intervention. It takes a seed research question and runs a four-phase cycle: refine hypothesis, literature review, implement & run experiments, analyze results. The analyze phase can spawn recursive child loops for follow-up questions.
+IDEA (Idea -> Deep research -> Experiment -> Analyze) is an autonomous research loop that investigates scientific hypotheses without human intervention. It takes a seed research question and runs a four-phase cycle: refine hypothesis, literature review, implement & run experiments, analyze results. The analyze phase can spawn recursive child loops for follow-up questions.
 
 ## Commands
 
@@ -19,32 +19,43 @@ idea run "your hypothesis here" --workspace ./runs
 idea report ./runs/
 ```
 
-Requires `ANTHROPIC_API_KEY` environment variable. Default model: `claude-sonnet-4-5-20250514`.
+Requires `ANTHROPIC_API_KEY` environment variable. Default model: `claude-opus-4-6`.
 
 No test suite, linter, or formatter is configured.
 
 ## Architecture
 
-**Execution flow:** `cli.py` → `loop.py:idea_loop()` → four phases → optional recursive child loops → `Report`
+**Execution flow:** `cli.py` -> `loop.py:idea_loop()` -> four phases -> optional recursive child loops -> `Report`
 
 The four phases execute sequentially within each loop iteration:
-1. **`idea.py`** — Refines seed text into a structured `Hypothesis` (expected outcomes, metrics, dependencies)
-2. **`deep_research.py`** — Literature review via multi-turn LLM tool-use with optional web search; produces `LitReview`
-3. **`experiment.py`** — Generates baseline + novel Python scripts, executes them in `sandbox.py` subprocess, iterates with a separate critic LLM call (implementer/critic separation pattern)
+1. **`hypothesize.py`** — Refines seed text into a structured `Hypothesis` via `llm.structured()`
+2. **`research.py`** — Literature review with optional web search; returns a dict
+3. **`experiment.py`** — Generates baseline + novel Python scripts, executes them in `sandbox.py` subprocess, one retry on failure
 4. **`analyze.py`** — Produces verdict (positive/negative/inconclusive) and 0-3 follow-up questions that spawn child loops
 
 **Key design patterns:**
-- **Report as universal interface** — Parent loops only see child `Report` objects, never child code. Reports serialize to JSON and markdown.
-- **Budget as outer constraint** — `budget.py` tracks API calls, cost ($), wall time, and recursion depth with thread-safe counters. Child branches split the remaining budget equally.
-- **Critic separation** — `experiment.py` uses separate implementer and critic LLM calls to avoid self-confirmation bias. The critic checks for bugs, overfitting, and fairness before results are accepted.
-- **Recursive branching** — Follow-up questions from analyze phase spawn child `idea_loop()` calls. Runs in parallel (`ThreadPoolExecutor`) or sequential based on `--parallel` flag. Children's findings are synthesized back into the parent report.
+- **Structured output via forced `tool_use`** — `llm.structured()` uses `tool_choice={"type": "tool", "name": "respond"}` to force valid JSON. No regex parsing.
+- **Report as universal interface** — Parent loops only see child `Report` objects. Reports serialize to JSON.
+- **Single shared LLM instance** — One `LLM` object passed to all phases and child loops. Tracks `total_cost` globally. `exhausted` property checks budget.
+- **Sequential execution** — No parallelism, no threads. Child loops run in a simple for-loop.
+- **Config as simple dataclass** — `Config` in `__init__.py` holds model, max_cost, max_depth, max_branches, web_search.
+
+**File layout:**
+```
+src/idea/
+  __init__.py       # __version__ + Config dataclass
+  cli.py            # Click CLI
+  loop.py           # idea_loop() orchestration
+  llm.py            # LLM wrapper: __call__, structured(), with_tools()
+  sandbox.py        # run_code() + ExecResult
+  report.py         # Report dataclass with save/load/__str__
+  hypothesize.py    # Phase 1: seed -> Hypothesis
+  research.py       # Phase 2: lit review + web search
+  experiment.py     # Phase 3: baseline + idea, run both
+  analyze.py        # Phase 4: verdict + follow-ups
+```
 
 **Infrastructure modules:**
-- **`llm.py`** — Anthropic SDK wrapper with per-call cost tracking, multi-turn tool-use loop, and resilient JSON extraction (handles markdown fences, escaped content, partial JSON)
-- **`sandbox.py`** — Subprocess execution with 5-minute timeout; extracts JSON metrics from last stdout line
-- **`budget.py`** — Thread-safe budget with locks; supports `check()` to test exhaustion and `child(n)` to split budget
-- **`report.py`** — Dataclass with `save()` (JSON + markdown), `load()`, and `context_summary()` for passing findings to children
-
-## Known Issues
-
-- `loop.py` imports `from .workspace import create_child_workspace` but the `workspace` module does not exist — this will cause a runtime `ImportError`
+- **`llm.py`** — Three methods: `__call__` (text), `structured` (forced tool_use JSON), `with_tools` (server-side tools like web search). Cost tracking via `total_cost` float. `BudgetExhausted` exception.
+- **`sandbox.py`** — `run_code()` writes code to file, runs subprocess with 5-minute timeout, extracts JSON metrics from last stdout line.
+- **`report.py`** — Dataclass with `save()` (JSON only), `load()`, `context_summary()`, and `__str__()` for readable text output.

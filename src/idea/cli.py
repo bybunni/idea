@@ -1,4 +1,5 @@
 import argparse
+import os
 from pathlib import Path
 
 from .llm import LLM
@@ -6,7 +7,18 @@ from .loop import idea_loop
 from .report import Report
 
 
+def _load_env():
+    try:
+        for line in Path(".env").read_text().splitlines():
+            if line.strip() and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip().strip("\"'"))
+    except FileNotFoundError:
+        pass
+
+
 def main():
+    _load_env()
     p = argparse.ArgumentParser(description="IDEA: autonomous research loop")
     sub = p.add_subparsers(dest="cmd")
 

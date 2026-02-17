@@ -19,7 +19,7 @@ idea run "your hypothesis here" --workspace ./runs
 idea report ./runs/
 ```
 
-Requires `ANTHROPIC_API_KEY` environment variable. Default model: `claude-opus-4-6`. Only dependency: `anthropic`.
+Requires `ANTHROPIC_API_KEY` environment variable (supports `.env` file; see `.env.example`). Default model: `claude-opus-4-6`. Only dependency: `anthropic`.
 
 No test suite, linter, or formatter is configured.
 
